@@ -59,4 +59,3 @@ instance (Eq a, Hashable a, IsString a, FromJSON b) => FromJSON (StringHashMap a
 
 instance JSONSchema b => JSONSchema (StringHashMap a b) where
   schema _ = mapSchema (Proxy :: Proxy b)
-

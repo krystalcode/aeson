@@ -89,7 +89,7 @@ import Data.Proxy (Proxy(..))
 import Data.Ratio (Ratio, (%), numerator, denominator)
 import Data.Scientific (Scientific)
 import Data.Tagged (Tagged(..))
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, unpack)
 import Data.Time (Day, LocalTime, NominalDiffTime, TimeOfDay, UTCTime,
                   ZonedTime)
 import Data.Time.Format (FormatTime, formatTime, parseTime)
@@ -703,18 +703,6 @@ encodeWithKey encodeKey foldrWithKey = brackets '{' '}' . foldrWithKey go mempty
 encodeKV :: (ToJSON v) => (k -> Encoding) -> k -> v -> B.Builder
 encodeKV encodeKey k v = fromEncoding (encodeKey k) <> B.char7 ':' <> builder v
 {-# INLINE encodeKV #-}
-
-instance (FromJSON v) => FromJSON (M.Map Text v) where
-    parseJSON = withObject "Map Text a" $
-                  fmap (H.foldrWithKey M.insert M.empty) . H.traverseWithKey (\k v -> parseJSON v <?> Key k)
-
-instance (FromJSON v) => FromJSON (M.Map LT.Text v) where
-    parseJSON = fmap (hashMapKey LT.fromStrict) . parseJSON
-    {-# INLINE parseJSON #-}
-
-instance (FromJSON v) => FromJSON (M.Map String v) where
-    parseJSON = fmap (hashMapKey unpack) . parseJSON
-    {-# INLINE parseJSON #-}
 
 instance (ToJSON v, ToJSONKey k) => ToJSON (M.Map k v) where
     toJSON = case toJSONKey of
@@ -1637,7 +1625,7 @@ instance ToJSONKey Bool where
     )
 
 instance ToJSONKey Int where
-  toJSONKey = ToJSONKeyText 
+  toJSONKey = ToJSONKeyText
     ( LT.toStrict . LTB.toLazyText . LTBI.decimal
     , \x -> Encoding $ B.char7 '"' <> fromEncoding (toEncoding x) <> B.char7 '"'
     )
@@ -1647,9 +1635,12 @@ instance FromJSONKey Int where
   -- aeson for doing this.
   fromJSONKey = FromJSONKeyTextParser $ \t -> case TR.decimal t of
     Left err -> fail err
-    Right (v,t2) -> if T.null t2 
-      then return v 
+    Right (v,t2) -> if T.null t2
+      then return v
       else fail "Was not an integer, had extra stuff."
+
+instance FromJSONKey Char where
+  fromJSONKey = FromJSONKeyTextParser (\t -> if T.length t == 1 then return (T.index t 0) else typeMismatch "Expected Char but String didn't contain exactly one character" (String t))
 
 instance (ToJSON a, ToJSON b) => ToJSONKey (a,b)
 instance (ToJSON a, ToJSON b, ToJSON c) => ToJSONKey (a,b,c)
@@ -1667,6 +1658,9 @@ instance (ToJSONKey a, ToJSON a) => ToJSONKey (Identity a) where
 
 instance FromJSONKey a => FromJSONKey (Identity a) where
   fromJSONKey = mapFromJSONKeyFunction Identity fromJSONKey
+
+instance (FromJSON a, FromJSONKey a) => FromJSONKey [a] where
+  fromJSONKey = FromJSONKeyValue parseJSON
 
 contramapToJSONKeyFunction :: (b -> a) -> ToJSONKeyFunction a -> ToJSONKeyFunction b
 contramapToJSONKeyFunction h x = case x of
