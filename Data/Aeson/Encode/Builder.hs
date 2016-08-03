@@ -195,7 +195,7 @@ timeOfDay t = timeOfDay64 (toTimeOfDay64 t)
 
 timeOfDay64 :: TimeOfDay64 -> Builder
 timeOfDay64 (TOD h m s)
-  | frac == 0 = hhmmss -- omit subseconds if 0
+  | frac == 0 = hhmmss <> B.string7 ".000" -- append zeros if 0
   | otherwise = hhmmss <> BP.primBounded showFrac frac
   where
     hhmmss  = BP.primBounded (ascii8 (hh,(hl,(':',(mh,(ml,(':',(sh,sl)))))))) ()
